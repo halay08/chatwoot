@@ -14,8 +14,12 @@ class Instagram::SendOnInstagramService < Base::SendOnChannelService
   end
 
   def perform_reply
-    send_to_facebook_page attachament_message_params if message.attachments.present?
-    send_to_facebook_page message_params
+    if message.template?
+      send_to_facebook_page fb_template_message_params
+    else
+      send_to_facebook_page attachament_message_params if message.attachments.present?
+      send_to_facebook_page message_params
+    end
   rescue StandardError => e
     Sentry.capture_exception(e)
     # TODO : handle specific errors or else page will get disconnected
@@ -40,6 +44,39 @@ class Instagram::SendOnInstagramService < Base::SendOnChannelService
           type: attachment_type(attachment),
           payload: {
             url: attachment.file_url
+          }
+        }
+      }
+    }
+  end
+
+  def prepare_msg_elements(items)
+    items.map do |item|
+      {
+        title: item['title'],
+        image_url: item['media_url'],
+        subtitle: item['description'],
+        buttons: [
+          { type: 'web_url', url: 'https://propertyscout.co.th', title: 'Shortlist' },
+          { type: 'web_url', url: 'https://propertyscout.co.th', title: 'Remove' }
+        ]
+      }
+    end
+  end
+
+  def fb_template_message_params
+    message_items = message.content_attributes.try(:[], 'items')
+    return {} if message_items.blank?
+
+    fb_msg_elements = prepare_msg_elements(message_items)
+    {
+      recipient: { id: contact.get_source_id(inbox.id) },
+      message: {
+        attachment: {
+          type: 'template',
+          payload: {
+            template_type: 'generic',
+            elements: fb_msg_elements
           }
         }
       }

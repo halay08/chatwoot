@@ -45,3 +45,9 @@ export const CSAT_RATINGS = [
     color: '#44CE4B',
   },
 ];
+
+export const CHANNEL_TYPE = {
+  WEB_WIDGET: 'Channel::WebWidget',
+  LINE: 'Channel::Line',
+  FACEBOOK: 'Channel::FacebookPage',
+};

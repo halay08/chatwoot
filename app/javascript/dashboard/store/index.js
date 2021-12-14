@@ -31,6 +31,7 @@ import teams from './modules/teams';
 import userNotificationSettings from './modules/userNotificationSettings';
 import webhooks from './modules/webhooks';
 import attributes from './modules/attributes';
+import conversationResponseUrl from './modules/conversationResponseUrl';
 
 Vue.use(Vuex);
 export default new Vuex.Store({
@@ -65,5 +66,6 @@ export default new Vuex.Store({
     userNotificationSettings,
     webhooks,
     attributes,
+    conversationResponseUrl,
   },
 });

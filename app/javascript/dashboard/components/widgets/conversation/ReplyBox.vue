@@ -58,13 +58,43 @@
         :remove-attachment="removeAttachment"
       />
     </div>
+    <div v-if="supportUrlParser">
+      <woot-modal :show.sync="showUrlModal" :on-close="hideUrlModal">
+        <woot-modal-header
+          :header-title="'modal test'"
+          :header-content="'modal test content'"
+        />
+        <form @submit.prevent="sendMessage">
+          <woot-input
+            v-model="responseUrl"
+            type="url"
+            :class="{ error: $v.responseUrl.$error }"
+            :placeholder="'Input URL for a JSON payload'"
+            @blur="$v.responseUrl.$touch"
+          />
+          <div class="button-wrapper">
+            <woot-button
+              color-scheme="primary"
+              :is-disabled="$v.responseUrl.$invalid"
+            >
+              Submit
+            </woot-button>
+            <woot-button class="clear" @click.prevent="hideUrlModal">
+              Cancel
+            </woot-button>
+          </div>
+        </form>
+      </woot-modal>
+    </div>
     <reply-bottom-panel
       :mode="replyType"
       :send-button-text="replyButtonLabel"
       :on-file-upload="onFileUpload"
       :show-file-upload="showFileUpload"
       :toggle-emoji-picker="toggleEmojiPicker"
+      :toggle-url-modal="toggleUrlModal"
       :show-emoji-picker="showEmojiPicker"
+      :show-url-modal="showUrlModal"
       :on-send="sendMessage"
       :is-send-disabled="isReplyButtonDisabled"
       :set-format-mode="setFormatMode"
@@ -92,7 +122,11 @@ import ReplyBottomPanel from 'dashboard/components/widgets/WootWriter/ReplyBotto
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
 import WootMessageEditor from 'dashboard/components/widgets/WootWriter/Editor';
 import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
-import { MAXIMUM_FILE_UPLOAD_SIZE } from 'shared/constants/messages';
+import {
+  MAXIMUM_FILE_UPLOAD_SIZE,
+  CHANNEL_TYPE,
+  MESSAGE_TYPE,
+} from 'shared/constants/messages';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 import {
@@ -103,6 +137,28 @@ import {
 import { MESSAGE_MAX_LENGTH } from 'shared/helpers/MessageTypeHelper';
 import inboxMixin from 'shared/mixins/inboxMixin';
 import uiSettingsMixin from 'dashboard/mixins/uiSettings';
+import { required } from 'vuelidate/lib/validators';
+
+function urlToSearchParamsData(url) {
+  const url_search = url.split('?')[1];
+  const urlSearchParams = new URLSearchParams(url_search);
+  const params = Object.fromEntries(urlSearchParams.entries());
+  return params;
+}
+function responseUrlValidator(value) {
+  const params = urlToSearchParamsData(value);
+  const paramKeys = Object.keys(params);
+  const requiredParams = [
+    'user_id',
+    'listing_id',
+    'listing_image',
+    'listing_title',
+    'listing_desc',
+    'listing_price',
+    'listing_url',
+  ];
+  return requiredParams.every(param => paramKeys.includes(param));
+}
 
 export default {
   components: {
@@ -144,7 +200,15 @@ export default {
       hasSlashCommand: false,
       bccEmails: '',
       ccEmails: '',
+      responseUrl: '',
+      showUrlModal: false,
     };
+  },
+  validations: {
+    responseUrl: {
+      required,
+      responseUrlValidator,
+    },
   },
   computed: {
     showRichContentEditor() {
@@ -161,7 +225,10 @@ export default {
       }
       return false;
     },
-    ...mapGetters({ currentChat: 'getSelectedChat' }),
+    ...mapGetters({
+      currentChat: 'getSelectedChat',
+      responseUrlData: 'conversationResponseUrl/getResponseUrlData',
+    }),
     enterToSendEnabled() {
       return !!this.uiSettings.enter_to_send_enabled;
     },
@@ -361,7 +428,7 @@ export default {
       this.updateUISettings({ enter_to_send_enabled: enterToSendEnabled });
     },
     async sendMessage() {
-      if (this.isReplyButtonDisabled) {
+      if (this.isReplyButtonDisabled && !this.responseUrl) {
         return;
       }
       if (!this.showMentions) {
@@ -372,12 +439,14 @@ export default {
           await this.$store.dispatch('sendMessage', messagePayload);
           this.$emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
         } catch (error) {
+          console.log('errors: ', error);
           const errorMessage =
             error?.response?.data?.error ||
             this.$t('CONVERSATION.MESSAGE_ERROR');
           this.showAlert(errorMessage);
         }
         this.hideEmojiPicker();
+        this.hideUrlModal();
         this.$emit('update:popoutReplyBox', false);
       }
     },
@@ -407,6 +476,9 @@ export default {
     toggleEmojiPicker() {
       this.showEmojiPicker = !this.showEmojiPicker;
     },
+    toggleUrlModal() {
+      this.showUrlModal = !this.showUrlModal;
+    },
     hideEmojiPicker() {
       if (this.showEmojiPicker) {
         this.toggleEmojiPicker();
@@ -414,6 +486,10 @@ export default {
     },
     hideMentions() {
       this.showMentions = false;
+    },
+    hideUrlModal() {
+      this.showUrlModal = false;
+      this.responseUrl = '';
     },
     onTypingOn() {
       this.toggleTyping('on');
@@ -472,7 +548,7 @@ export default {
         message,
         private: this.isPrivate,
       };
-
+      messagePayload.contentAttributes = {};
       if (this.inReplyTo) {
         messagePayload.contentAttributes = { in_reply_to: this.inReplyTo };
       }
@@ -489,6 +565,10 @@ export default {
         messagePayload.bccEmails = this.bccEmails;
       }
 
+      if (this.responseUrl) {
+        this.parseUrlToMessagePayload(messagePayload);
+      }
+
       return messagePayload;
     },
     setFormatMode(value) {
@@ -497,6 +577,44 @@ export default {
     setCcEmails(value) {
       this.bccEmails = value.bccEmails;
       this.ccEmails = value.ccEmails;
+    },
+    supportUrlParser() {
+      const supportUrlChannels = [
+        CHANNEL_TYPE.WEB_WIDGET,
+        CHANNEL_TYPE.LINE,
+        CHANNEL_TYPE.FACEBOOK,
+      ];
+      supportUrlChannels.includes(this.currentChat.meta.channel);
+    },
+    async parseUrlToMessagePayload(messagePayload) {
+      // await this.$store.dispatch('conversationResponseUrl/parseResponseUrl', {
+      //   conversationId: this.currentChat.id,
+      //   responseUrl: this.responseUrl,
+      // });
+      const params = urlToSearchParamsData(this.responseUrl);
+      messagePayload.message = 'cards';
+      const items = [
+        {
+          media_url: params.listing_image,
+          title: `${params.listing_title} - ${params.listing_price}`,
+          description: params.listing_desc,
+          actions: [
+            {
+              type: 'link',
+              text: 'Shortlist',
+              uri: 'http://google.com',
+            },
+            {
+              type: 'link',
+              text: 'Remove',
+              uri: 'http://google.com',
+            },
+          ],
+        },
+      ];
+      messagePayload.contentAttributes.items = items;
+      messagePayload.message_type = MESSAGE_TYPE.TEMPLATE;
+      messagePayload.contentType = 'cards';
     },
   },
 };

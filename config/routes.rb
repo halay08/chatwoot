@@ -67,6 +67,7 @@ Rails.application.routes.draw do
               resources :messages, only: [:index, :create, :destroy]
               resources :assignments, only: [:create]
               resources :labels, only: [:create, :index]
+              resources :parse_urls, only: [:create]
             end
             member do
               post :mute

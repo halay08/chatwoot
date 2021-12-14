@@ -13,6 +13,12 @@ class ConversationApi extends ApiClient {
   updateLabels(conversationID, labels) {
     return axios.post(`${this.url}/${conversationID}/labels`, { labels });
   }
+
+  parseResponseUrl(conversationId, responseUrl) {
+    return axios.post(`${this.url}/${conversationId}/parse_urls`, {
+      response_url: responseUrl,
+    });
+  }
 }
 
 export default new ConversationApi();

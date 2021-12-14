@@ -41,6 +41,13 @@
         :title="$t('CONVERSATION.REPLYBOX.TIP_FORMAT_ICON')"
         @click="toggleFormatMode"
       />
+      <woot-button
+        icon="clipboard"
+        color-scheme="secondary"
+        variant="smooth"
+        size="small"
+        @click="toggleUrlModal"
+      />
       <transition name="modal-fade">
         <div
           v-show="$refs.upload && $refs.upload.dropActive"
@@ -142,6 +149,10 @@ export default {
     enterToSendEnabled: {
       type: Boolean,
       default: true,
+    },
+    toggleUrlModal: {
+      type: Function,
+      default: () => {},
     },
   },
   computed: {

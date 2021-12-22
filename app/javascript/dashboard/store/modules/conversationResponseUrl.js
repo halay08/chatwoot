@@ -56,7 +56,7 @@ export const actions = {
       );
       commit(types.default.SET_RESPONSE_URL_DATA, {
         id: conversationId,
-        data: response.data.payload,
+        data: response.data,
       });
       commit(types.default.SET_RESPONSE_URL_DATA_UI_FLAG, {
         isUpdating: false,

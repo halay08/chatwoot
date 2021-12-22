@@ -52,14 +52,14 @@ class Instagram::SendOnInstagramService < Base::SendOnChannelService
 
   def prepare_msg_elements(items)
     items.map do |item|
+      buttons = item['actions'].map do |action|
+        { type: 'web_url', url: action['uri'], title: action['text'] }
+      end
       {
         title: item['title'],
         image_url: item['media_url'],
         subtitle: item['description'],
-        buttons: [
-          { type: 'web_url', url: 'https://propertyscout.co.th', title: 'Shortlist' },
-          { type: 'web_url', url: 'https://propertyscout.co.th', title: 'Remove' }
-        ]
+        buttons: buttons
       }
     end
   end

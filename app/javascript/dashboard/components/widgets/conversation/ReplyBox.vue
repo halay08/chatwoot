@@ -64,7 +64,7 @@
           :header-title="'modal test'"
           :header-content="'modal test content'"
         />
-        <form @submit.prevent="sendMessage">
+        <form @submit.prevent="getUrlToMessagePayload">
           <woot-input
             v-model="responseUrl"
             type="url"
@@ -139,25 +139,9 @@ import inboxMixin from 'shared/mixins/inboxMixin';
 import uiSettingsMixin from 'dashboard/mixins/uiSettings';
 import { required } from 'vuelidate/lib/validators';
 
-function urlToSearchParamsData(url) {
-  const url_search = url.split('?')[1];
-  const urlSearchParams = new URLSearchParams(url_search);
-  const params = Object.fromEntries(urlSearchParams.entries());
-  return params;
-}
 function responseUrlValidator(value) {
-  const params = urlToSearchParamsData(value);
-  const paramKeys = Object.keys(params);
-  const requiredParams = [
-    'user_id',
-    'listing_id',
-    'listing_image',
-    'listing_title',
-    'listing_desc',
-    'listing_price',
-    'listing_url',
-  ];
-  return requiredParams.every(param => paramKeys.includes(param));
+  const validUrlRegex = /^https:\/\/propertyscout.co.th\/(\w{0,2})\/{0,1}propertypad\/(.*)\/{0,1}$/;
+  return validUrlRegex.test(value);
 }
 
 export default {
@@ -586,32 +570,29 @@ export default {
       ];
       supportUrlChannels.includes(this.currentChat.meta.channel);
     },
-    async parseUrlToMessagePayload(messagePayload) {
-      // await this.$store.dispatch('conversationResponseUrl/parseResponseUrl', {
-      //   conversationId: this.currentChat.id,
-      //   responseUrl: this.responseUrl,
-      // });
-      const params = urlToSearchParamsData(this.responseUrl);
-      messagePayload.message = 'cards';
-      const items = [
-        {
-          media_url: params.listing_image,
-          title: `${params.listing_title} - ${params.listing_price}`,
-          description: params.listing_desc,
+    async getUrlToMessagePayload() {
+      await this.$store.dispatch('conversationResponseUrl/parseResponseUrl', {
+        conversationId: this.currentChat.id,
+        responseUrl: this.responseUrl,
+      });
+      this.sendMessage();
+    },
+    parseUrlToMessagePayload(messagePayload) {
+      messagePayload.message = 'carousel';
+      const items = this.responseUrlData[this.currentChat.id].map(
+        rentalData => ({
+          media_url: rentalData.rental_image,
+          title: rentalData.rental_title,
+          description: rentalData.rental_desc,
           actions: [
             {
               type: 'link',
-              text: 'Shortlist',
-              uri: 'http://google.com',
-            },
-            {
-              type: 'link',
-              text: 'Remove',
-              uri: 'http://google.com',
+              text: 'View Details',
+              uri: rentalData.rental_url,
             },
           ],
-        },
-      ];
+        })
+      );
       messagePayload.contentAttributes.items = items;
       messagePayload.message_type = MESSAGE_TYPE.TEMPLATE;
       messagePayload.contentType = 'cards';

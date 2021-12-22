@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Conversations::ParseUrlsController < Api::V1::Accounts::Conversations::BaseController
   def create
-    url_data = {}
+    url_data = CrawlMessageData.new(permitted_params[:response_url]).perform
     render json: url_data
   end
 
@@ -11,6 +11,6 @@ class Api::V1::Accounts::Conversations::ParseUrlsController < Api::V1::Accounts:
   end
 
   def permitted_params
-    params.permit(:conversation_id, :response_url)
+    params.permit(:response_url)
   end
 end

@@ -1,6 +1,8 @@
 class Line::SendOnLineService < Base::SendOnChannelService
   private
 
+  LINE_TITLE_MAX_LENGTH = 40
+
   def channel_class
     Channel::Line
   end
@@ -23,20 +25,15 @@ class Line::SendOnLineService < Base::SendOnChannelService
 
   def prepare_msg_columns(items)
     items.map do |item|
+      actions = item['actions'].map do |action|
+        { type: 'uri', label: action['text'], uri: action['uri'] }
+      end
       {
         'thumbnailImageUrl': item['media_url'],
         'imageBackgroundColor': '#FFFFFF',
-        'title': item['title'],
+        'title': item['title']&.truncate(LINE_TITLE_MAX_LENGTH),
         'text': item['description'],
-        'defaultAction': {
-          'type': 'uri',
-          'label': 'View detail',
-          'uri': 'https://propertyscout.co.th'
-        },
-        'actions': [
-          { 'type': 'uri', 'label': 'Shortlist', 'uri': 'https://propertyscout.co.th' },
-          { 'type': 'uri', 'label': 'Remove', 'uri': 'https://propertyscout.co.th' }
-        ]
+        'actions': actions
       }
     end
   end
